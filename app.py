@@ -71,20 +71,20 @@ def predict_with_pipeline(pipeline, X: pd.DataFrame, threshold: float = 0.5):
 # =========================================
 # 4) Streamlit layout
 # =========================================
-st.markdown("---")
-st.markdown("### Powered by")
+# st.markdown("---")
+# st.markdown("### Powered by")
 
-col1, col2, col3 = st.columns(3)
-LOGO_WIDTH = 220
+# col1, col2, col3 = st.columns(3)
+# LOGO_WIDTH = 220
 
-with col1:
-    st.image("images.jpeg", width=LOGO_WIDTH)
-with col2:
-    st.image("images.png", width=LOGO_WIDTH)
-with col3:
-    st.image("qeeri_logo.png", width=LOGO_WIDTH)
+# with col1:
+#     st.image("images.jpeg", width=LOGO_WIDTH)
+# with col2:
+#     st.image("images.png", width=LOGO_WIDTH)
+# with col3:
+#     st.image("qeeri_logo.png", width=LOGO_WIDTH)
 
-st.markdown("---")
+# st.markdown("---")
 
 # ---- Main title ----
 st.title("🩺 Risk Prediction Web App")
