@@ -71,20 +71,26 @@ def predict_with_pipeline(pipeline, X: pd.DataFrame, threshold: float = 0.5):
 # =========================================
 # 4) Streamlit layout
 # =========================================
-# st.markdown("---")
-# st.markdown("### Powered by")
+# existing sidebar code...
+st.sidebar.write(f"**Classes:** {classes}")
+threshold = st.sidebar.slider(
+    "Decision threshold (for probability-based models)",
+    min_value=0.10,
+    max_value=0.90,
+    value=0.50,
+    step=0.05,
+)
 
-# col1, col2, col3 = st.columns(3)
-# LOGO_WIDTH = 220
+# ---- Powered by logos in sidebar ----
+st.sidebar.markdown("---")
+st.sidebar.markdown("**Powered by**")
 
-# with col1:
-#     st.image("images.jpeg", width=LOGO_WIDTH)
-# with col2:
-#     st.image("images.png", width=LOGO_WIDTH)
-# with col3:
-#     st.image("qeeri_logo.png", width=LOGO_WIDTH)
+LOGO_WIDTH = 180  # adjust if needed
 
-# st.markdown("---")
+st.sidebar.image("images.png",  width=LOGO_WIDTH)
+st.sidebar.image("images.jpeg", width=LOGO_WIDTH)
+st.sidebar.image("qeeri_logo.png", width=LOGO_WIDTH)
+
 
 # ---- Main title ----
 st.title("🩺 Risk Prediction Web App")
