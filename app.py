@@ -78,12 +78,12 @@ st.set_page_config(
 )
 
 st.title("🩺 Risk Prediction Web App")
-st.markdown(
-    """
-This app uses your trained model from `website_model_package.pkl`  
-to estimate risk based on clinical and hoof-related features.
-"""
-)
+# st.markdown(
+#     """
+# This app uses your trained model from `website_model_package.pkl`  
+# to estimate risk based on clinical and hoof-related features.
+# """
+# )
 
 # Try to load the package
 try:
