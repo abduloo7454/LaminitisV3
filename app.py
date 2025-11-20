@@ -71,10 +71,6 @@ def predict_with_pipeline(pipeline, X: pd.DataFrame, threshold: float = 0.5):
 # =========================================
 # 4) Streamlit layout
 # =========================================
-
-# After st.set_page_config(...)
-
-# ---- Powered by (top of page) ----
 st.markdown("---")
 st.markdown("### Powered by")
 
