@@ -6,12 +6,16 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-
 # =========================================
 # 1) Configuration
 # =========================================
 PACKAGE_FILENAME = "website_model_package.pkl"
 
+st.set_page_config(
+    page_title="Risk Prediction Web App",
+    page_icon="🩺",
+    layout="wide",
+)
 
 # =========================================
 # 2) Load website model package (joblib)
@@ -27,16 +31,6 @@ def load_website_package(filename: str = PACKAGE_FILENAME) -> Dict[str, Any]:
     # IMPORTANT: use joblib.load, NOT pickle.load
     pkg = joblib.load(pkg_path)
 
-    # Expect the structure you used when saving:
-    # {
-    #   'pipeline': website_pipeline,
-    #   'feature_names': [...],
-    #   'feature_ranges': {...},
-    #   'model_type': best_model_name,
-    #   'is_binary': True/False,
-    #   'classes': [...],
-    #   'performance': {'accuracy': ..., 'f1_score': ...}
-    # }
     required_keys = ["pipeline", "feature_names"]
     for k in required_keys:
         if k not in pkg:
@@ -44,7 +38,6 @@ def load_website_package(filename: str = PACKAGE_FILENAME) -> Dict[str, Any]:
                 f"Key '{k}' not found in website package. "
                 f"Available keys: {list(pkg.keys())}"
             )
-
     return pkg
 
 
@@ -69,40 +62,8 @@ def predict_with_pipeline(pipeline, X: pd.DataFrame, threshold: float = 0.5):
 
 
 # =========================================
-# 4) Streamlit layout
+# 4) Load package and extract info
 # =========================================
-# existing sidebar code...
-st.sidebar.write(f"**Classes:** {classes}")
-threshold = st.sidebar.slider(
-    "Decision threshold (for probability-based models)",
-    min_value=0.10,
-    max_value=0.90,
-    value=0.50,
-    step=0.05,
-)
-
-# ---- Powered by logos in sidebar ----
-st.sidebar.markdown("---")
-st.sidebar.markdown("**Powered by**")
-
-LOGO_WIDTH = 180  # adjust if needed
-
-st.sidebar.image("images.png",  width=LOGO_WIDTH)
-st.sidebar.image("images.jpeg", width=LOGO_WIDTH)
-st.sidebar.image("qeeri_logo.png", width=LOGO_WIDTH)
-
-
-# ---- Main title ----
-st.title("🩺 Risk Prediction Web App")
-
-# st.markdown(
-#     """
-# This app uses your trained model from `website_model_package.pkl`  
-# to estimate risk based on clinical and hoof-related features.
-# """
-# )
-
-# Try to load the package
 try:
     PKG = load_website_package()
 except Exception as e:
@@ -122,9 +83,12 @@ model_type = PKG.get("model_type", "Unknown model")
 is_binary = PKG.get("is_binary", True)
 classes = PKG.get("classes", [])
 
-# Sidebar: meta-info and threshold
+# =========================================
+# 5) Sidebar: model info + logos + threshold
+# =========================================
 st.sidebar.header("Model info")
 st.sidebar.write(f"**Model type:** {model_type}")
+
 if performance:
     st.sidebar.write(
         f"**Accuracy:** {performance.get('accuracy', float('nan')):.3f}"
@@ -132,9 +96,11 @@ if performance:
     st.sidebar.write(
         f"**F1-score:** {performance.get('f1_score', float('nan')):.3f}"
     )
+
 st.sidebar.write(f"**Binary classification:** {is_binary}")
 st.sidebar.write(f"**Classes:** {classes}")
 
+# Decision threshold slider (only once!)
 threshold = st.sidebar.slider(
     "Decision threshold (for probability-based models)",
     min_value=0.10,
@@ -144,16 +110,36 @@ threshold = st.sidebar.slider(
 )
 
 st.sidebar.markdown("---")
+st.sidebar.markdown("**Powered by**")
+
+LOGO_WIDTH = 180  # adjust as you like
+
+# Make sure these filenames exist in your repo
+st.sidebar.image("images.png", width=LOGO_WIDTH)
+st.sidebar.image("images.jpeg", width=LOGO_WIDTH)
+st.sidebar.image("qeeri_logo.png", width=LOGO_WIDTH)
+
+st.sidebar.markdown("---")
 # st.sidebar.write("📊 Features used:")
 # st.sidebar.write(feature_names)
 
+# =========================================
+# 6) Main title
+# =========================================
+st.title("🩺 Risk Prediction Web App")
+
+st.markdown(
+    """
+This app uses your trained model from `website_model_package.pkl`  
+to estimate risk based on clinical and hoof-related features.
+"""
+)
 
 # =========================================
-# 5) Input form
+# 7) Input form
 # =========================================
 st.subheader("Enter input features")
 
-# Custom config for known features (labels + reasonable ranges)
 feature_config = {
     "Age(years)":      dict(label="Age (years)", min=0.0, max=40.0, default=10.0, step=1.0),
     "Sex":             dict(label="Sex (encoded)", min=0.0, max=3.0, default=1.0, step=1.0),
@@ -186,7 +172,6 @@ with st.form("input_form"):
         # Fallbacks if ranges not provided
         min_val = cfg.get("min", float(frange.get("min", 0.0)))
         max_val = cfg.get("max", float(frange.get("max", 100.0)))
-        # If min == max (weird), widen a bit
         if max_val <= min_val:
             max_val = min_val + 1.0
 
@@ -208,12 +193,10 @@ with st.form("input_form"):
 
     submitted = st.form_submit_button("Predict")
 
-
 # =========================================
-# 6) Run prediction
+# 8) Run prediction
 # =========================================
 if submitted:
-    # Build single-row DataFrame in correct order
     X = pd.DataFrame([[values[f] for f in feature_names]], columns=feature_names)
 
     label, proba = predict_with_pipeline(pipeline, X, threshold=threshold)
