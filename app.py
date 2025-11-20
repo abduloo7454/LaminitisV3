@@ -71,6 +71,22 @@ def predict_with_pipeline(pipeline, X: pd.DataFrame, threshold: float = 0.5):
 # =========================================
 # 4) Streamlit layout
 # =========================================
+
+st.markdown("---")
+st.markdown("### Powered by")
+
+# Create 4 equal columns
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.image("images.jpeg", use_container_width=True)
+
+with col2:
+    st.image("images.png", use_container_width=True)
+
+with col3:
+    st.image("qeeri_logo.png", use_container_width=True)
+
 st.set_page_config(
     page_title="Risk Prediction Web App",
     page_icon="🩺",
