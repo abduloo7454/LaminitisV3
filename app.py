@@ -127,8 +127,8 @@ threshold = st.sidebar.slider(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.write("📊 Features used:")
-st.sidebar.write(feature_names)
+# st.sidebar.write("📊 Features used:")
+# st.sidebar.write(feature_names)
 
 
 # =========================================
