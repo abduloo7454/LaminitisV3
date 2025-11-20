@@ -86,7 +86,7 @@ classes = PKG.get("classes", [])
 # =========================================
 # 5) Sidebar: model info + logos + threshold
 # =========================================
-st.sidebar.markdown("---")
+
 st.sidebar.markdown("**Powered by**")
 
 LOGO_WIDTH = 180  # adjust as you like
@@ -96,7 +96,6 @@ st.sidebar.image("images.png", width=LOGO_WIDTH)
 st.sidebar.image("images.jpeg", width=LOGO_WIDTH)
 st.sidebar.image("qeeri_logo.png", width=LOGO_WIDTH)
 
-st.sidebar.markdown("---")
 
 st.sidebar.header("Model info")
 st.sidebar.write(f"**Model type:** {model_type}")
