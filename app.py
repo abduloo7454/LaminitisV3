@@ -72,28 +72,27 @@ def predict_with_pipeline(pipeline, X: pd.DataFrame, threshold: float = 0.5):
 # 4) Streamlit layout
 # =========================================
 
+# After st.set_page_config(...)
+
+# ---- Powered by (top of page) ----
 st.markdown("---")
 st.markdown("### Powered by")
 
-# Create 4 equal columns
 col1, col2, col3 = st.columns(3)
+LOGO_WIDTH = 220
 
 with col1:
-    st.image("images.jpeg", use_container_width=True)
-
+    st.image("images/qbri.png", width=LOGO_WIDTH)
 with col2:
-    st.image("images.png", use_container_width=True)
-
+    st.image("images/equine_vet_center.png", width=LOGO_WIDTH)
 with col3:
-    st.image("qeeri_logo.png", use_container_width=True)
+    st.image("images/queeri_hbku.png", width=LOGO_WIDTH)
 
-st.set_page_config(
-    page_title="Risk Prediction Web App",
-    page_icon="🩺",
-    layout="centered",
-)
+st.markdown("---")
 
+# ---- Main title ----
 st.title("🩺 Risk Prediction Web App")
+
 # st.markdown(
 #     """
 # This app uses your trained model from `website_model_package.pkl`  
