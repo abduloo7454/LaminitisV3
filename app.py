@@ -78,11 +78,11 @@ col1, col2, col3 = st.columns(3)
 LOGO_WIDTH = 220
 
 with col1:
-    st.image("images/qbri.png", width=LOGO_WIDTH)
+    st.image("images.jpeg", width=LOGO_WIDTH)
 with col2:
-    st.image("images/equine_vet_center.png", width=LOGO_WIDTH)
+    st.image("images.png", width=LOGO_WIDTH)
 with col3:
-    st.image("images/queeri_hbku.png", width=LOGO_WIDTH)
+    st.image("qeeri_logo.png", width=LOGO_WIDTH)
 
 st.markdown("---")
 
