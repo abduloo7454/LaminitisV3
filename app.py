@@ -1,204 +1,122 @@
-import pickle
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional, List
+from typing import Dict, Any
 
+import joblib
 import numpy as np
 import pandas as pd
 import streamlit as st
 
 
-# =====================================================
+# =========================================
 # 1) Configuration
-# =====================================================
-
+# =========================================
 PACKAGE_FILENAME = "website_model_package.pkl"
 
 
-# Default feature list (order matters!)
-DEFAULT_FEATURE_NAMES: List[str] = [
-    "Age(years)",
-    "Sex",
-    "HeartRate",
-    "Respiratoryrate",
-    "Rectaltemperature",
-    "Gutsounds",
-    "Digitalpulses",
-    "Bodyweight(kg)",
-    "BodyConditionScoring(outof9)",
-    "LengthRF",
-    "LengthLF",
-    "LengthRH",
-    "WidthRF",
-    "WidthLF",
-    "WidthRH",
-    "HTRF",
-    "HTRH",
-    "LERF",
-]
-
-
-# =====================================================
-# 2) Load package (models, scaler, feature_names)
-# =====================================================
-
+# =========================================
+# 2) Load website model package (joblib)
+# =========================================
 @st.cache_resource
-def load_model_package(
-    filename: str = PACKAGE_FILENAME,
-) -> Tuple[Dict[str, Any], Optional[Any], List[str], Dict[str, Any]]:
-    """
-    Load the pickle package and extract:
-      - models: dict[str, model-like object]
-      - scaler: optional scaler / transformer
-      - feature_names: list of feature names (if present; otherwise DEFAULT_FEATURE_NAMES)
-      - raw_pkg: raw dictionary returned by pickle.load()
-    """
+def load_website_package(filename: str = PACKAGE_FILENAME) -> Dict[str, Any]:
     pkg_path = Path(filename)
-
     if not pkg_path.exists():
         raise FileNotFoundError(
             f"Model package file '{filename}' not found in working directory."
         )
 
-    # Load pickle safely (assuming same environment as training)
-    with pkg_path.open("rb") as f:
-        pkg = pickle.load(f)
+    # IMPORTANT: use joblib.load, NOT pickle.load
+    pkg = joblib.load(pkg_path)
 
-    if not isinstance(pkg, dict):
-        # If user saved a single object, wrap it into a dict
-        pkg = {"model": pkg}
+    # Expect the structure you used when saving:
+    # {
+    #   'pipeline': website_pipeline,
+    #   'feature_names': [...],
+    #   'feature_ranges': {...},
+    #   'model_type': best_model_name,
+    #   'is_binary': True/False,
+    #   'classes': [...],
+    #   'performance': {'accuracy': ..., 'f1_score': ...}
+    # }
+    required_keys = ["pipeline", "feature_names"]
+    for k in required_keys:
+        if k not in pkg:
+            raise KeyError(
+                f"Key '{k}' not found in website package. "
+                f"Available keys: {list(pkg.keys())}"
+            )
 
-    # ---- Extract models ----
-    models: Dict[str, Any] = {}
+    return pkg
 
-    if "models" in pkg and isinstance(pkg["models"], dict):
-        # user stored multiple models in a dict
-        models = pkg["models"]
-    elif "model" in pkg:
-        # single model
-        models = {"Main model": pkg["model"]}
-    elif "pipeline" in pkg:
-        # single sklearn Pipeline
-        models = {"Pipeline model": pkg["pipeline"]}
+
+# =========================================
+# 3) Small helpers
+# =========================================
+def predict_with_pipeline(pipeline, X: pd.DataFrame, threshold: float = 0.5):
+    """
+    Generic prediction for sklearn Pipeline:
+      - If predict_proba exists: return (label, proba1)
+      - Else: (label, None)
+    """
+    if hasattr(pipeline, "predict_proba"):
+        proba = pipeline.predict_proba(X)
+        proba_1 = float(proba[0, 1])
+        label = int(proba_1 >= threshold)
+        return label, proba_1
     else:
-        # last resort: any key that looks like a model
-        for k, v in pkg.items():
-            if hasattr(v, "predict"):
-                models[k] = v
-
-    if not models:
-        raise KeyError(
-            "No model found in the package. "
-            "Expected keys like 'models', 'model', or 'pipeline'."
-        )
-
-    # ---- Extract scaler (optional) ----
-    scaler = pkg.get("scaler", None)
-
-    # ---- Extract feature names ----
-    feature_names = pkg.get("feature_names", None)
-    if feature_names is None:
-        # fall back to default list
-        feature_names = DEFAULT_FEATURE_NAMES
-
-    # Ensure feature_names is a list of strings
-    feature_names = [str(f) for f in feature_names]
-
-    return models, scaler, feature_names, pkg
+        y_pred = pipeline.predict(X)
+        label = int(y_pred[0])
+        return label, None
 
 
-# =====================================================
-# 3) Small helper functions
-# =====================================================
-
-def build_input_dataframe(
-    feature_names: List[str],
-    form_values: Dict[str, float],
-) -> pd.DataFrame:
-    """
-    Build a single-row DataFrame matching the feature_names order.
-    """
-    row = {f: form_values[f] for f in feature_names}
-    return pd.DataFrame([row])
-
-
-def model_predict(
-    model: Any,
-    X: pd.DataFrame,
-    threshold: float = 0.5,
-) -> Tuple[int, Optional[float]]:
-    """
-    Generic wrapper for predicting with a model.
-
-    If model has `.predict_proba`, return:
-        label (0/1), probability_of_class_1
-    Otherwise return:
-        label, None
-    """
-    # For sklearn Pipelines, just call them directly with X
-    try:
-        if hasattr(model, "predict_proba"):
-            proba = model.predict_proba(X)  # type: ignore[attr-defined]
-            proba_1 = float(proba[0, 1])
-            label = int(proba_1 >= threshold)
-            return label, proba_1
-        else:
-            # no predict_proba -> classification only
-            y_pred = model.predict(X)
-            label = int(y_pred[0])
-            return label, None
-    except Exception as e:
-        # Fallback: try converting X to numpy
-        X_np = X.values
-        if hasattr(model, "predict_proba"):
-            proba = model.predict_proba(X_np)  # type: ignore[attr-defined]
-            proba_1 = float(proba[0, 1])
-            label = int(proba_1 >= threshold)
-            return label, proba_1
-        else:
-            y_pred = model.predict(X_np)
-            label = int(y_pred[0])
-            return label, None
-
-
-# =====================================================
+# =========================================
 # 4) Streamlit layout
-# =====================================================
-
+# =========================================
 st.set_page_config(
-    page_title="Risk Prediction Website",
+    page_title="Risk Prediction Web App",
     page_icon="🩺",
     layout="centered",
 )
 
 st.title("🩺 Risk Prediction Web App")
-
 st.markdown(
     """
-This app uses your trained models from `website_model_package.pkl`  
+This app uses your trained model from `website_model_package.pkl`  
 to estimate risk based on clinical and hoof-related features.
 """
 )
 
-# Try loading the model package
+# Try to load the package
 try:
-    MODELS, SCALER, FEATURE_NAMES, RAW_PKG = load_model_package()
+    PKG = load_website_package()
 except Exception as e:
     st.error(
         f"❌ Could not load model package.\n\n"
-        f"Error: `{type(e).__name__}: {e}`\n\n"
-        "Make sure `website_model_package.pkl` is in the same folder as `app.py`."
+        f"Error: {type(e).__name__}: {e}\n\n"
+        f"Make sure `{PACKAGE_FILENAME}` is in the same folder as `app.py`, "
+        "and that it was saved with `joblib.dump`."
     )
     st.stop()
 
-# Sidebar: model selection & threshold
-st.sidebar.header("Model settings")
+pipeline = PKG["pipeline"]
+feature_names = list(PKG["feature_names"])
+feature_ranges = PKG.get("feature_ranges", {})
+performance = PKG.get("performance", {})
+model_type = PKG.get("model_type", "Unknown model")
+is_binary = PKG.get("is_binary", True)
+classes = PKG.get("classes", [])
 
-model_names = list(MODELS.keys())
-selected_models = st.sidebar.multiselect(
-    "Select models to run",
-    model_names,
-    default=model_names,
-)
+# Sidebar: meta-info and threshold
+st.sidebar.header("Model info")
+st.sidebar.write(f"**Model type:** {model_type}")
+if performance:
+    st.sidebar.write(
+        f"**Accuracy:** {performance.get('accuracy', float('nan')):.3f}"
+    )
+    st.sidebar.write(
+        f"**F1-score:** {performance.get('f1_score', float('nan')):.3f}"
+    )
+st.sidebar.write(f"**Binary classification:** {is_binary}")
+st.sidebar.write(f"**Classes:** {classes}")
 
 threshold = st.sidebar.slider(
     "Decision threshold (for probability-based models)",
@@ -209,126 +127,88 @@ threshold = st.sidebar.slider(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.write("📦 Package keys:", list(RAW_PKG.keys()))
-st.sidebar.write("📊 Features used:", FEATURE_NAMES)
+st.sidebar.write("📊 Features used:")
+st.sidebar.write(feature_names)
 
 
-# =====================================================
-# 5) Input form for all features
-# =====================================================
-
+# =========================================
+# 5) Input form
+# =========================================
 st.subheader("Enter input features")
 
+# Custom config for known features (labels + reasonable ranges)
+feature_config = {
+    "Age(years)":      dict(label="Age (years)", min=0.0, max=40.0, default=10.0, step=1.0),
+    "Sex":             dict(label="Sex (encoded)", min=0.0, max=3.0, default=1.0, step=1.0),
+    "HeartRate":       dict(label="Heart Rate", min=0.0, max=150.0, default=44.0, step=1.0),
+    "Respiratoryrate": dict(label="Respiratory rate", min=0.0, max=120.0, default=20.0, step=1.0),
+    "Rectaltemperature": dict(label="Rectal temperature (°C)", min=30.0, max=42.0, default=37.5, step=0.1),
+    "Gutsounds":       dict(label="Gutsounds (encoded)", min=-1.0, max=3.0, default=0.0, step=1.0),
+    "Digitalpulses":   dict(label="Digital pulses (encoded)", min=0.0, max=3.0, default=0.0, step=1.0),
+    "Bodyweight(kg)":  dict(label="Body weight (kg)", min=50.0, max=900.0, default=450.0, step=10.0),
+    "BodyConditionScoring(outof9)": dict(label="Body Condition Score (out of 9)", min=1.0, max=9.0, default=5.0, step=0.5),
+    "LengthRF":        dict(label="LengthRF", min=0.0, max=50.0, default=10.0, step=0.1),
+    "LengthLF":        dict(label="LengthLF", min=0.0, max=50.0, default=10.0, step=0.1),
+    "LengthRH":        dict(label="LengthRH", min=0.0, max=50.0, default=10.0, step=0.1),
+    "WidthRF":         dict(label="WidthRF", min=0.0, max=50.0, default=10.0, step=0.1),
+    "WidthLF":         dict(label="WidthLF", min=0.0, max=50.0, default=10.0, step=0.1),
+    "WidthRH":         dict(label="WidthRH", min=0.0, max=50.0, default=10.0, step=0.1),
+    "HTRF":            dict(label="HTRF (encoded)", min=-1.0, max=3.0, default=0.0, step=1.0),
+    "HTRH":            dict(label="HTRH (encoded)", min=-1.0, max=3.0, default=0.0, step=1.0),
+    "LERF":            dict(label="LERF (encoded)", min=0.0, max=4.0, default=0.0, step=1.0),
+}
+
 with st.form("input_form"):
-    # Two-column layout for nicer UI
     col1, col2 = st.columns(2)
+    values: Dict[str, float] = {}
 
-    # NOTE: ranges / defaults are generic — adjust for your data as needed.
-    with col1:
-        age = st.number_input("Age (years)", 0.0, 40.0, 10.0, 1.0)
-        sex = st.number_input("Sex (encoded)", 0, 3, 1, 1)
-        heart_rate = st.number_input("Heart Rate", 0.0, 150.0, 44.0, 1.0)
-        resp_rate = st.number_input("Respiratory rate", 0.0, 120.0, 20.0, 1.0)
-        rect_temp = st.number_input("Rectal temperature (°C)", 30.0, 42.0, 37.5, 0.1)
-        gut_sounds = st.number_input("Gutsounds (encoded)", -1.0, 3.0, 0.0, 1.0)
-        digital_pulses = st.number_input("Digital pulses (encoded)", 0.0, 3.0, 0.0, 1.0)
-        body_weight = st.number_input("Body weight (kg)", 50.0, 900.0, 450.0, 10.0)
-        bcs = st.number_input(
-            "Body Condition Score (out of 9)", 1.0, 9.0, 5.0, 0.5
+    for i, feat in enumerate(feature_names):
+        cfg = feature_config.get(feat, {})
+        frange = feature_ranges.get(feat, {})
+
+        # Fallbacks if ranges not provided
+        min_val = cfg.get("min", float(frange.get("min", 0.0)))
+        max_val = cfg.get("max", float(frange.get("max", 100.0)))
+        # If min == max (weird), widen a bit
+        if max_val <= min_val:
+            max_val = min_val + 1.0
+
+        default_val = cfg.get(
+            "default",
+            float((min_val + max_val) / 2.0)
         )
+        step_val = cfg.get("step", 1.0)
 
-    with col2:
-        length_rf = st.number_input("LengthRF", 0.0, 50.0, 10.0, 0.1)
-        length_lf = st.number_input("LengthLF", 0.0, 50.0, 10.0, 0.1)
-        length_rh = st.number_input("LengthRH", 0.0, 50.0, 10.0, 0.1)
-        width_rf = st.number_input("WidthRF", 0.0, 50.0, 10.0, 0.1)
-        width_lf = st.number_input("WidthLF", 0.0, 50.0, 10.0, 0.1)
-        width_rh = st.number_input("WidthRH", 0.0, 50.0, 10.0, 0.1)
-        htrf = st.number_input("HTRF (encoded)", -1.0, 3.0, 0.0, 1.0)
-        htrh = st.number_input("HTRH (encoded)", -1.0, 3.0, 0.0, 1.0)
-        lerf = st.number_input("LERF (encoded)", 0.0, 4.0, 0.0, 1.0)
+        col = col1 if i % 2 == 0 else col2
+        val = col.number_input(
+            cfg.get("label", feat),
+            min_value=float(min_val),
+            max_value=float(max_val),
+            value=float(default_val),
+            step=float(step_val),
+        )
+        values[feat] = float(val)
 
     submitted = st.form_submit_button("Predict")
 
 
-# =====================================================
-# 6) Run prediction when form is submitted
-# =====================================================
-
+# =========================================
+# 6) Run prediction
+# =========================================
 if submitted:
-    if not selected_models:
-        st.warning("Please select at least one model from the sidebar.")
-        st.stop()
+    # Build single-row DataFrame in correct order
+    X = pd.DataFrame([[values[f] for f in feature_names]], columns=feature_names)
 
-    # Map all form values into a dict
-    form_values: Dict[str, float] = {
-        "Age(years)": age,
-        "Sex": float(sex),
-        "HeartRate": heart_rate,
-        "Respiratoryrate": resp_rate,
-        "Rectaltemperature": rect_temp,
-        "Gutsounds": gut_sounds,
-        "Digitalpulses": digital_pulses,
-        "Bodyweight(kg)": body_weight,
-        "BodyConditionScoring(outof9)": bcs,
-        "LengthRF": length_rf,
-        "LengthLF": length_lf,
-        "LengthRH": length_rh,
-        "WidthRF": width_rf,
-        "WidthLF": width_lf,
-        "WidthRH": width_rh,
-        "HTRF": htrf,
-        "HTRH": htrh,
-        "LERF": lerf,
-    }
+    label, proba = predict_with_pipeline(pipeline, X, threshold=threshold)
 
-    # Build input DataFrame in correct feature order
-    X_input = build_input_dataframe(FEATURE_NAMES, form_values)
+    risk_text = "High risk" if label == 1 else "Low / intermediate risk"
 
-    # If a separate scaler exists (and is not inside pipelines), try to apply it
-    # Otherwise, many users store full Pipelines that already include scaling.
-    if SCALER is not None:
-        try:
-            X_scaled = SCALER.transform(X_input)
-            X_for_model = pd.DataFrame(X_scaled, columns=FEATURE_NAMES)
-        except Exception:
-            # If scaler mismatches, just use original X_input
-            X_for_model = X_input
-    else:
-        X_for_model = X_input
+    st.markdown("### 🔍 Prediction result")
+    st.write(f"**Predicted class:** `{label}`")
+    st.write(f"**Risk interpretation:** **{risk_text}**")
 
-    st.markdown("### 🔍 Prediction results")
-    results_rows = []
-
-    for model_name in selected_models:
-        model = MODELS[model_name]
-
-        # If model is a Pipeline (with scaler inside), we can pass raw X_input.
-        try:
-            label, proba = model_predict(model, X_for_model)
-        except Exception:
-            label, proba = model_predict(model, X_input)
-
-        risk_text = "High risk" if label == 1 else "Low / intermediate risk"
-
-        results_rows.append(
-            {
-                "Model": model_name,
-                "Predicted class": int(label),
-                "Risk interpretation": risk_text,
-                "Probability (class 1)": round(proba, 3) if proba is not None else None,
-            }
-        )
-
-    results_df = pd.DataFrame(results_rows)
-    st.dataframe(results_df, use_container_width=True)
-
-    # Simple summary based on the first model in the list
-    primary = results_rows[0]
-    st.markdown(
-        f"**Summary (based on `{primary['Model']}`):** "
-        f"Predicted class = `{primary['Predicted class']}` → **{primary['Risk interpretation']}**"
-    )
+    if proba is not None:
+        st.write(f"**Probability of class 1:** `{proba:.3f}` (threshold = {threshold:.2f})")
 
     st.markdown("#### Input used")
-    st.dataframe(X_input, use_container_width=True)
+    st.dataframe(X, use_container_width=True)
