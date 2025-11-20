@@ -24,6 +24,20 @@ st.set_page_config(
 # =========================================
 @st.cache_resource
 def load_website_package(filename: str = PACKAGE_FILENAME) -> Dict[str, Any]:
+    """
+    Load the website-ready package saved with joblib.
+
+    Expected structure:
+    {
+        "pipeline": sklearn Pipeline,
+        "feature_names": [...],
+        "feature_ranges": {feature: {"min": ..., "max": ...}, ...},
+        "model_type": str,
+        "is_binary": bool,
+        "classes": [...],
+        "performance": {"accuracy": float, "f1_score": float}
+    }
+    """
     pkg_path = Path(filename)
     if not pkg_path.exists():
         raise FileNotFoundError(
@@ -47,9 +61,12 @@ def load_website_package(filename: str = PACKAGE_FILENAME) -> Dict[str, Any]:
 # =========================================
 def predict_with_pipeline(pipeline, X: pd.DataFrame, threshold: float = 0.5):
     """
-    For a sklearn Pipeline:
-      - If predict_proba exists: return (label, p(class=1))
-      - Else: return (label, None)
+    Predict using a sklearn Pipeline.
+
+    If pipeline has predict_proba:
+        returns (label, probability_of_class_1)
+    Else:
+        returns (label, None)
     """
     if hasattr(pipeline, "predict_proba"):
         proba = pipeline.predict_proba(X)
@@ -63,7 +80,7 @@ def predict_with_pipeline(pipeline, X: pd.DataFrame, threshold: float = 0.5):
 
 
 # =========================================
-# 4) Load model package
+# 4) Load model package and extract info
 # =========================================
 try:
     PKG = load_website_package()
@@ -86,31 +103,46 @@ classes = PKG.get("classes", [])
 
 
 # =========================================
-# 5) Sidebar: Powered by + navigation
+# 5) Sidebar – Powered by (top)
 # =========================================
-# ---- Powered by logos at TOP ----
 st.sidebar.markdown("**Powered by**")
+
 LOGO_WIDTH = 160  # adjust to taste
 
-# Make sure these filenames exist in your repo
+# Make sure these files exist in your repo root:
+#   images.png, images.jpeg, qeeri_logo.png
 st.sidebar.image("images.png",     width=LOGO_WIDTH)
 st.sidebar.image("images.jpeg",    width=LOGO_WIDTH)
 st.sidebar.image("qeeri_logo.png", width=LOGO_WIDTH)
 
 st.sidebar.markdown("---")
 
-# ---- Navigation between pages ----
-page = st.sidebar.radio(
-    "Go to",
-    ["Risk Prediction", "About the Project", "Meet the Team"],
+
+# =========================================
+# 6) Main title + tabs (boxed navigation)
+# =========================================
+st.title("🩺 Laminitis Risk Prediction Web App")
+
+st.markdown(
+    """
+This tool uses a machine-learning model trained on clinical and hoof-related
+features to estimate the probability that a horse is at risk of laminitis.
+
+Use the tabs below to switch between the prediction tool, project overview,
+and team information.
+"""
+)
+
+tab1, tab2, tab3 = st.tabs(
+    ["Risk Prediction", "About the Project", "Meet the Team"]
 )
 
 
 # =========================================
-# 6) PAGE 1 – Risk Prediction
+# 7) TAB 1 – Risk Prediction
 # =========================================
-if page == "Risk Prediction":
-    # Sidebar model info + threshold
+with tab1:
+    # Sidebar: model info + threshold (shown while this tab is active)
     st.sidebar.header("Model info")
     st.sidebar.write(f"**Model type:** {model_type}")
 
@@ -133,19 +165,9 @@ if page == "Risk Prediction":
         step=0.05,
     )
 
-    st.title("🩺 Laminitis Risk Prediction Web App")
-
-    st.markdown(
-        """
-This tool uses a machine-learning model trained on clinical and hoof-related
-features to estimate the probability that a horse is at risk of laminitis.
-Please enter the available information below.
-"""
-    )
-
     st.subheader("Enter input features")
 
-    # ----- feature config -----
+    # ----- feature config for nicer labels and ranges -----
     feature_config = {
         "Age(years)":      dict(label="Age (years)", min=0.0, max=40.0, default=10.0, step=1.0),
         "Sex":             dict(label="Sex (encoded)", min=0.0, max=3.0, default=1.0, step=1.0),
@@ -168,13 +190,17 @@ Please enter the available information below.
     }
 
     with st.form("input_form"):
-        col1, col2 = st.columns(2)
+        # 3 columns so it fits nicely on the page
+        col1, col2, col3 = st.columns(3)
+        cols = [col1, col2, col3]
+
         values: Dict[str, float] = {}
 
         for i, feat in enumerate(feature_names):
             cfg = feature_config.get(feat, {})
             frange = feature_ranges.get(feat, {})
 
+            # Fallback ranges: either from config or from training data
             min_val = cfg.get("min", float(frange.get("min", 0.0)))
             max_val = cfg.get("max", float(frange.get("max", 100.0)))
             if max_val <= min_val:
@@ -186,7 +212,9 @@ Please enter the available information below.
             )
             step_val = cfg.get("step", 1.0)
 
-            col = col1 if i % 2 == 0 else col2
+            # Round-robin: 0 → col1, 1 → col2, 2 → col3, 3 → col1, ...
+            col = cols[i % 3]
+
             val = col.number_input(
                 cfg.get("label", feat),
                 min_value=float(min_val),
@@ -219,10 +247,10 @@ Please enter the available information below.
 
 
 # =========================================
-# 7) PAGE 2 – About the Project
+# 8) TAB 2 – About the Project
 # =========================================
-elif page == "About the Project":
-    st.title("🔍 About the Laminitis Risk Project")
+with tab2:
+    st.header("🔍 About the Laminitis Risk Project")
 
     st.markdown(
         """
@@ -233,50 +261,46 @@ The underlying model was trained on clinical examination findings and
 hoof-measurement data collected from horses examined at the Equine
 Veterinary Medical Center and collaborating institutions.
 
-Key goals of the project:
+**Key goals**
 
-- Translate machine-learning research into a simple web-based risk tool.
-- Help clinicians combine multiple risk factors into a single probability estimate.
-- Provide a transparent framework that can be improved as more data become available.
+- Translate machine-learning research into a simple web-based risk tool  
+- Help clinicians combine multiple risk factors into a single probability estimate  
+- Provide a framework that can be refined as new data are added  
 
 This online tool is intended to complement, not replace, the judgement
-of experienced veterinarians. Final clinical decisions should always
-consider the full history, examination findings, and imaging where relevant.
+of experienced veterinarians. Final decisions should always consider
+the full clinical context and the expertise of the attending clinician.
 """
     )
 
 
 # =========================================
-# 8) PAGE 3 – Team
+# 9) TAB 3 – Meet the Team
 # =========================================
-elif page == "Meet the Team":
-    st.title("👥 Project Team")
+with tab3:
+    st.header("👥 Meet the Team")
 
     st.markdown(
         """
-This work is the result of a collaborative effort between veterinarians,
-data scientists, and researchers.
+You can adapt this section with individual names and roles.
 
-**Clinical and Veterinary Contributors**
+### Clinical and Veterinary Contributors
 
 - Equine clinicians providing case assessment, data collection,
   and interpretation of laminitis risk.
 - Specialists overseeing case selection, inclusion criteria,
-  and validation of the risk categories.
+  and validation of risk categories.
 
-**Data Science and Modelling**
+### Data Science and Modelling
 
 - Researchers responsible for data preprocessing, feature engineering,
   model development, and evaluation.
-- Team members implementing the web interface and deployment workflow.
+- Team members implementing the web interface and deployment pipeline.
 
-**Institutional Support**
+### Institutional Support
 
 - Qatar Biomedical Research Institute / Hamad Bin Khalifa University  
 - Equine Veterinary Medical Center  
 - Partner institutes contributing expertise, infrastructure, and funding.
-
-You can adapt this section with individual names, roles, and contact
-details as needed for internal or public use.
 """
     )
