@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Dict, Any
 
 import joblib
-import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -16,6 +15,39 @@ st.set_page_config(
     page_title="Laminitis Risk Prediction",
     page_icon="🩺",
     layout="wide",
+)
+
+# ---- Small CSS tuning for nicer UI ----
+st.markdown(
+    """
+    <style>
+    /* Tighter, centered main container */
+    .block-container {
+        padding-top: 1.5rem;
+        padding-bottom: 2rem;
+        max-width: 1100px;
+    }
+    h1 {
+        text-align: center;
+        margin-bottom: 0.3rem;
+    }
+    h2, h3, h4, h5 {
+        font-weight: 600;
+    }
+    label {
+        font-weight: 500 !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        font-size: 0.95rem;
+        padding-top: 0.4rem;
+        padding-bottom: 0.4rem;
+    }
+    /* Optional: hide default Streamlit menu/footer for cleaner look */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
 
@@ -103,7 +135,7 @@ classes = PKG.get("classes", [])
 
 
 # =========================================
-# 5) Sidebar – Powered by (top)
+# 5) Sidebar – Powered by (top) + model info
 # =========================================
 st.sidebar.markdown("**Powered by**")
 
@@ -117,11 +149,35 @@ st.sidebar.image("qeeri_logo.png", width=LOGO_WIDTH)
 
 st.sidebar.markdown("---")
 
+st.sidebar.header("Model info")
+st.sidebar.write(f"**Model type:** {model_type}")
+
+if performance:
+    st.sidebar.write(
+        f"**Accuracy:** {performance.get('accuracy', float('nan')):.3f}"
+    )
+    st.sidebar.write(
+        f"**F1-score:** {performance.get('f1_score', float('nan')):.3f}"
+    )
+
+st.sidebar.write(f"**Binary classification:** {is_binary}")
+st.sidebar.write(f"**Classes:** {classes}")
+
+threshold = st.sidebar.slider(
+    "Decision threshold (for probability-based models)",
+    min_value=0.10,
+    max_value=0.90,
+    value=0.50,
+    step=0.05,
+)
+
+st.sidebar.markdown("---")
+
 
 # =========================================
 # 6) Main title + tabs (boxed navigation)
 # =========================================
-st.title("🩺 Laminitis Risk Prediction Web App")
+st.title("Laminitis Risk Prediction Web App 🩺")
 
 st.markdown(
     """
@@ -134,7 +190,7 @@ and team information.
 )
 
 tab1, tab2, tab3 = st.tabs(
-    ["Risk Prediction", "About the Project", "Meet the Team"]
+    ["🧮 Risk Prediction", "📄 About the Project", "👥 Meet the Team"]
 )
 
 
@@ -142,79 +198,149 @@ tab1, tab2, tab3 = st.tabs(
 # 7) TAB 1 – Risk Prediction
 # =========================================
 with tab1:
-    # Sidebar: model info + threshold (shown while this tab is active)
-    st.sidebar.header("Model info")
-    st.sidebar.write(f"**Model type:** {model_type}")
-
-    if performance:
-        st.sidebar.write(
-            f"**Accuracy:** {performance.get('accuracy', float('nan')):.3f}"
-        )
-        st.sidebar.write(
-            f"**F1-score:** {performance.get('f1_score', float('nan')):.3f}"
-        )
-
-    st.sidebar.write(f"**Binary classification:** {is_binary}")
-    st.sidebar.write(f"**Classes:** {classes}")
-
-    threshold = st.sidebar.slider(
-        "Decision threshold (for probability-based models)",
-        min_value=0.10,
-        max_value=0.90,
-        value=0.50,
-        step=0.05,
-    )
-
     st.subheader("Enter input features")
 
-    # ----- feature config for nicer labels and ranges -----
-    feature_config = {
-        "Age(years)":      dict(label="Age (years)", min=0.0, max=40.0, default=10.0, step=1.0),
-        "Sex":             dict(label="Sex (encoded)", min=0.0, max=3.0, default=1.0, step=1.0),
-        "HeartRate":       dict(label="Heart rate (beats/min)", min=0.0, max=150.0, default=44.0, step=1.0),
-        "Respiratoryrate": dict(label="Respiratory rate (breaths/min)", min=0.0, max=120.0, default=20.0, step=1.0),
-        "Rectaltemperature": dict(label="Rectal temperature (°C)", min=30.0, max=42.0, default=37.5, step=0.1),
-        "Gutsounds":       dict(label="Gutsounds (encoded)", min=-1.0, max=3.0, default=0.0, step=1.0),
-        "Digitalpulses":   dict(label="Digital pulses (encoded)", min=0.0, max=3.0, default=0.0, step=1.0),
-        "Bodyweight(kg)":  dict(label="Body weight (kg)", min=50.0, max=900.0, default=450.0, step=10.0),
-        "BodyConditionScoring(outof9)": dict(label="Body Condition Score (1–9)", min=1.0, max=9.0, default=5.0, step=0.5),
-        "LengthRF":        dict(label="Length RF", min=0.0, max=50.0, default=10.0, step=0.1),
-        "LengthLF":        dict(label="Length LF", min=0.0, max=50.0, default=10.0, step=0.1),
-        "LengthRH":        dict(label="Length RH", min=0.0, max=50.0, default=10.0, step=0.1),
-        "WidthRF":         dict(label="Width RF", min=0.0, max=50.0, default=10.0, step=0.1),
-        "WidthLF":         dict(label="Width LF", min=0.0, max=50.0, default=10.0, step=0.1),
-        "WidthRH":         dict(label="Width RH", min=0.0, max=50.0, default=10.0, step=0.1),
-        "HTRF":            dict(label="HTRF (encoded)", min=-1.0, max=3.0, default=0.0, step=1.0),
-        "HTRH":            dict(label="HTRH (encoded)", min=-1.0, max=3.0, default=0.0, step=1.0),
-        "LERF":            dict(label="LERF (encoded)", min=0.0, max=4.0, default=0.0, step=1.0),
+    # Nice labels, ranges, and defaults for each feature
+    clinical_config = {
+        "Age(years)": dict(
+            label="Age (years)", min=0.0, max=40.0, default=10.0, step=1.0
+        ),
+        "Sex": dict(
+            label="Sex (encoded)", min=0.0, max=3.0, default=1.0, step=1.0,
+            # help could describe encoding if you want
+        ),
+        "HeartRate": dict(
+            label="Heart rate (beats/min)", min=0.0, max=150.0, default=44.0, step=1.0
+        ),
+        "Respiratoryrate": dict(
+            label="Respiratory rate (breaths/min)", min=0.0, max=120.0, default=20.0, step=1.0
+        ),
+        "Rectaltemperature": dict(
+            label="Rectal temperature (°C)", min=30.0, max=42.0, default=37.5, step=0.1
+        ),
+        "Gutsounds": dict(
+            label="Gutsounds (encoded)", min=-1.0, max=3.0, default=0.0, step=1.0
+        ),
+        "Digitalpulses": dict(
+            label="Digital pulses (encoded)", min=0.0, max=3.0, default=0.0, step=1.0
+        ),
+        "Bodyweight(kg)": dict(
+            label="Body weight (kg)", min=50.0, max=900.0, default=450.0, step=10.0
+        ),
+        "BodyConditionScoring(outof9)": dict(
+            label="Body Condition Score (1–9)", min=1.0, max=9.0, default=5.0, step=0.5
+        ),
     }
 
-    with st.form("input_form"):
-        # 3 columns so it fits nicely on the page
-        col1, col2, col3 = st.columns(3)
-        cols = [col1, col2, col3]
+    hoof_config = {
+        "LengthRF": dict(
+            label="Length RF", min=0.0, max=50.0, default=10.0, step=0.1
+        ),
+        "LengthLF": dict(
+            label="Length LF", min=0.0, max=50.0, default=10.0, step=0.1
+        ),
+        "LengthRH": dict(
+            label="Length RH", min=0.0, max=50.0, default=10.0, step=0.1
+        ),
+        "WidthRF": dict(
+            label="Width RF", min=0.0, max=50.0, default=10.0, step=0.1
+        ),
+        "WidthLF": dict(
+            label="Width LF", min=0.0, max=50.0, default=10.0, step=0.1
+        ),
+        "WidthRH": dict(
+            label="Width RH", min=0.0, max=50.0, default=10.0, step=0.1
+        ),
+        "HTRF": dict(
+            label="HTRF (encoded)", min=-1.0, max=3.0, default=0.0, step=1.0
+        ),
+        "HTRH": dict(
+            label="HTRH (encoded)", min=-1.0, max=3.0, default=0.0, step=1.0
+        ),
+        "LERF": dict(
+            label="LERF (encoded)", min=0.0, max=4.0, default=0.0, step=1.0
+        ),
+    }
 
+    # Combined config for easy mapping later
+    feature_config: Dict[str, Dict[str, float]] = {}
+    feature_config.update(clinical_config)
+    feature_config.update(hoof_config)
+
+    with st.form("input_form"):
         values: Dict[str, float] = {}
 
-        for i, feat in enumerate(feature_names):
-            cfg = feature_config.get(feat, {})
-            frange = feature_ranges.get(feat, {})
+        # ---------- Clinical block ----------
+        st.markdown("#### Clinical information")
+        c1, c2, c3 = st.columns(3)
 
-            # Fallback ranges: either from config or from training data
+        # Assign clinical fields to 3 columns
+        clinical_order = [
+            "Age(years)",
+            "Sex",
+            "HeartRate",
+            "Respiratoryrate",
+            "Rectaltemperature",
+            "Gutsounds",
+            "Digitalpulses",
+            "Bodyweight(kg)",
+            "BodyConditionScoring(outof9)",
+        ]
+        clinical_cols = [c1, c2, c3]
+
+        for i, feat in enumerate(clinical_order):
+            cfg = clinical_config[feat]
+            frange = feature_ranges.get(feat, {})
             min_val = cfg.get("min", float(frange.get("min", 0.0)))
             max_val = cfg.get("max", float(frange.get("max", 100.0)))
             if max_val <= min_val:
                 max_val = min_val + 1.0
-
             default_val = cfg.get(
                 "default",
                 float((min_val + max_val) / 2.0),
             )
             step_val = cfg.get("step", 1.0)
 
-            # Round-robin: 0 → col1, 1 → col2, 2 → col3, 3 → col1, ...
-            col = cols[i % 3]
+            col = clinical_cols[i % 3]
+            val = col.number_input(
+                cfg.get("label", feat),
+                min_value=float(min_val),
+                max_value=float(max_val),
+                value=float(default_val),
+                step=float(step_val),
+            )
+            values[feat] = float(val)
 
+        # ---------- Hoof block ----------
+        st.markdown("#### Hoof measurements")
+        h1, h2, h3 = st.columns(3)
+        hoof_order = [
+            "LengthRF",
+            "LengthLF",
+            "LengthRH",
+            "WidthRF",
+            "WidthLF",
+            "WidthRH",
+            "HTRF",
+            "HTRH",
+            "LERF",
+        ]
+        hoof_cols = [h1, h2, h3]
+
+        for i, feat in enumerate(hoof_order):
+            cfg = hoof_config[feat]
+            frange = feature_ranges.get(feat, {})
+            min_val = cfg.get("min", float(frange.get("min", 0.0)))
+            max_val = cfg.get("max", float(frange.get("max", 100.0)))
+            if max_val <= min_val:
+                max_val = min_val + 1.0
+            default_val = cfg.get(
+                "default",
+                float((min_val + max_val) / 2.0),
+            )
+            step_val = cfg.get("step", 1.0)
+
+            col = hoof_cols[i % 3]
             val = col.number_input(
                 cfg.get("label", feat),
                 min_value=float(min_val),
@@ -227,20 +353,40 @@ with tab1:
         submitted = st.form_submit_button("Predict")
 
     if submitted:
-        X = pd.DataFrame([[values[f] for f in feature_names]], columns=feature_names)
+        # Build row in correct order of feature_names from the model
+        feature_value_map = values  # keys match feature names
+        X = pd.DataFrame(
+            [[feature_value_map[f] for f in feature_names]],
+            columns=feature_names,
+        )
+
         label, proba = predict_with_pipeline(pipeline, X, threshold=threshold)
 
-        risk_text = "High risk" if label == 1 else "Low / intermediate risk"
-
-        st.markdown("### 🔍 Prediction result")
-        st.write(f"**Predicted class:** `{label}`")
-        st.write(f"**Risk interpretation:** **{risk_text}**")
+        # ---- Styled result card ----
+        if label == 1:
+            bg = "#ffe5e5"  # light red
+            title = "High risk"
+        else:
+            bg = "#e6ffe6"  # light green
+            title = "Low / intermediate risk"
 
         if proba is not None:
-            st.write(
-                f"**Probability of class 1:** `{proba:.3f}` "
-                f"(threshold = {threshold:.2f})"
-            )
+            detail = f"Probability (class 1): <b>{proba:.3f}</b> (threshold = {threshold:.2f})"
+        else:
+            detail = "Model does not expose predicted probabilities."
+
+        st.markdown(
+            f"""
+            <div style="padding:1rem; border-radius:0.75rem; background-color:{bg}; margin-top:1rem;">
+                <h3 style="margin:0;">{title}</h3>
+                <p style="margin:0.4rem 0 0;">
+                    Predicted class: <b>{label}</b><br>
+                    {detail}
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         st.markdown("#### Input used")
         st.dataframe(X, use_container_width=True)
@@ -250,7 +396,7 @@ with tab1:
 # 8) TAB 2 – About the Project
 # =========================================
 with tab2:
-    st.header("🔍 About the Laminitis Risk Project")
+    st.header("About the Laminitis Risk Project")
 
     st.markdown(
         """
@@ -268,8 +414,8 @@ Veterinary Medical Center and collaborating institutions.
 - Provide a framework that can be refined as new data are added  
 
 This online tool is intended to complement, not replace, the judgement
-of experienced veterinarians. Final decisions should always consider
-the full clinical context and the expertise of the attending clinician.
+of experienced veterinarians. Clinical decisions should always be made
+by qualified clinicians considering the full clinical context.
 """
     )
 
@@ -278,29 +424,52 @@ the full clinical context and the expertise of the attending clinician.
 # 9) TAB 3 – Meet the Team
 # =========================================
 with tab3:
-    st.header("👥 Meet the Team")
+    st.header("Meet the Team")
 
+    col_team1, col_team2 = st.columns(2)
+
+    with col_team1:
+        st.subheader("Clinical & Veterinary Leads")
+        st.markdown(
+            """
+- Equine clinicians providing case assessment, data collection,
+  and interpretation of laminitis risk  
+- Specialists overseeing case selection, inclusion criteria,
+  and validation of risk categories
+"""
+        )
+
+    with col_team2:
+        st.subheader("Data Science & Modelling")
+        st.markdown(
+            """
+- Researchers responsible for data preprocessing, feature engineering,
+  model development, and performance evaluation  
+- Team members implementing the web interface and deployment workflow
+"""
+        )
+
+    st.subheader("Institutional Support")
     st.markdown(
         """
-You can adapt this section with individual names and roles.
-
-### Clinical and Veterinary Contributors
-
-- Equine clinicians providing case assessment, data collection,
-  and interpretation of laminitis risk.
-- Specialists overseeing case selection, inclusion criteria,
-  and validation of risk categories.
-
-### Data Science and Modelling
-
-- Researchers responsible for data preprocessing, feature engineering,
-  model development, and evaluation.
-- Team members implementing the web interface and deployment pipeline.
-
-### Institutional Support
-
 - Qatar Biomedical Research Institute / Hamad Bin Khalifa University  
 - Equine Veterinary Medical Center  
-- Partner institutes contributing expertise, infrastructure, and funding.
+- Partner institutes contributing expertise, infrastructure, and computing support
 """
     )
+
+
+# =========================================
+# 10) Footer disclaimer
+# =========================================
+st.markdown(
+    """
+    <hr>
+    <p style="font-size:0.8rem; color:gray; text-align:center;">
+    This tool is for research and educational purposes only and does not replace
+    clinical judgement. Final decisions should always be made by qualified
+    veterinarians based on full examination and context.
+    </p>
+    """,
+    unsafe_allow_html=True,
+)
