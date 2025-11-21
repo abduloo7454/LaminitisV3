@@ -364,22 +364,30 @@ with tab1:
 
         # ---- Styled result card ----
         if label == 1:
-            bg = "#ffe5e5"  # light red
+            bg = "#ffe5e5"      # light red
+            text_color = "#7a0000"  # dark red text
             title = "High risk"
         else:
-            bg = "#e6ffe6"  # light green
+            bg = "#e6ffe6"      # light green
+            text_color = "#005000"  # dark green text
             title = "Low / intermediate risk"
-
+        
         if proba is not None:
             detail = f"Probability (class 1): <b>{proba:.3f}</b> (threshold = {threshold:.2f})"
         else:
             detail = "Model does not expose predicted probabilities."
-
+        
         st.markdown(
             f"""
-            <div style="padding:1rem; border-radius:0.75rem; background-color:{bg}; margin-top:1rem;">
-                <h3 style="margin:0;">{title}</h3>
-                <p style="margin:0.4rem 0 0;">
+            <div style="
+                padding:1rem;
+                border-radius:0.75rem;
+                background-color:{bg};
+                margin-top:1rem;
+                color:{text_color};
+            ">
+                <h3 style="margin:0; color:{text_color};">{title}</h3>
+                <p style="margin:0.4rem 0 0; color:{text_color};">
                     Predicted class: <b>{label}</b><br>
                     {detail}
                 </p>
@@ -387,6 +395,7 @@ with tab1:
             """,
             unsafe_allow_html=True,
         )
+
 
         st.markdown("#### Input used")
         st.dataframe(X, use_container_width=True)
