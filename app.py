@@ -440,8 +440,6 @@ with tab3:
     st.markdown('Dr. Jessica P Johnson')
     st.markdown('Abdullah')
 
-    st.sidebar.markdown("---")
-
     col_team1, col_team2 = st.columns(2)
 
     with col_team1:
