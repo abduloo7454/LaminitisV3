@@ -435,7 +435,7 @@ by qualified clinicians considering the full clinical context.
 with tab3:
     st.header("Meet the Team")
 
-    Prof. Othmane Bouhali
+    st.markdown('Prof. Othmane Bouhali')
 
     col_team1, col_team2 = st.columns(2)
 
