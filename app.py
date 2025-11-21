@@ -436,6 +436,9 @@ with tab3:
     st.header("Meet the Team")
 
     st.markdown('Prof. Othmane Bouhali')
+    st.markdown('Dr. Halima Bensmail')
+    st.markdown('Dr. Jessica P Johnson')
+    st.markdown('Abdullah')
 
     col_team1, col_team2 = st.columns(2)
 
