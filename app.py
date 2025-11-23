@@ -466,9 +466,9 @@ with tab3:
     st.subheader("Institutional Support")
     st.markdown(
         """
-- Qatar Biomedical Research Institute / Hamad Bin Khalifa University  
-- Equine Veterinary Medical Center  
-- Partner institutes contributing expertise, infrastructure, and computing support
+# - Qatar Biomedical Research Institute / Hamad Bin Khalifa University  
+# - Equine Veterinary Medical Center  
+# - Partner institutes contributing expertise, infrastructure, and computing support
 """
     )
 
